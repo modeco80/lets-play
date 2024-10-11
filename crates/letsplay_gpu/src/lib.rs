@@ -24,7 +24,7 @@ pub mod egl {
 
 /// Helper code for making EGL easier to use.
 pub mod egl_helpers {
-	use super::egl as egl;
+	use super::egl;
 	use egl::*;
 
 	// TODO: Move these helpers to a new "helpers" module.
@@ -92,6 +92,11 @@ pub mod egl_helpers {
 		}
 	}
 
+	// FIXME: Make this send and provide a (optional) wrapper which
+	// allows the context to be temporairly acquired on *one* other OS thread.
+	//
+	// This will be needed for zero-copy (or, well.. one-copy. It's still far less round trips >_<) encoding support.
+
 	/// A wrapper over a EGL Device context. Provides easy initialization and
 	/// cleanup functions.
 	pub struct DeviceContext {
@@ -101,6 +106,7 @@ pub mod egl_helpers {
 
 	impl DeviceContext {
 		pub fn new(index: usize) -> DeviceContext {
+			// FIXME: We should PROBABLY do slightly better error handling
 			let display = self::get_device_platform_display(index);
 
 			let context = unsafe {
@@ -145,13 +151,33 @@ pub mod egl_helpers {
 				let context =
 					egl::CreateContext(display, config, egl::NO_CONTEXT, std::ptr::null());
 
-				// Make the context current on the display so OpenGL routines "just work"
-				egl::MakeCurrent(display, egl::NO_SURFACE, egl::NO_SURFACE, context);
-
 				context
 			};
 
 			Self { display, context }
+		}
+
+		/// Makes this context current on the currently executing OS thread.
+		/// # Safety
+		/// This should only be called on one OS thread at a time. If contexts
+		/// are to be shared, currently, that needs to be done manually.
+		pub fn make_current(&self) {
+			unsafe {
+				// Make the context current on the display so OpenGL routines "just work"
+				egl::MakeCurrent(self.display, egl::NO_SURFACE, egl::NO_SURFACE, self.context);
+			}
+		}
+
+		/// Releases this context.
+		pub fn release(&self) {
+			unsafe {
+				egl::MakeCurrent(
+					self.display,
+					egl::NO_SURFACE,
+					egl::NO_SURFACE,
+					egl::NO_CONTEXT,
+				);
+			}
 		}
 
 		pub fn get_display(&self) -> types::EGLDisplay {
@@ -163,14 +189,8 @@ pub mod egl_helpers {
 				return;
 			}
 
-			// Release the EGL context we created before destroying it
+			// Destroy and terminate EGL resources.
 			unsafe {
-				egl::MakeCurrent(
-					self.display,
-					egl::NO_SURFACE,
-					egl::NO_SURFACE,
-					egl::NO_CONTEXT,
-				);
 				egl::DestroyContext(self.display, self.context);
 				egl::Terminate(self.display);
 

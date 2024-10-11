@@ -124,12 +124,14 @@ impl App {
 	/// Initalizes the headless EGL context used for OpenGL rendering.
 	fn hw_gl_egl_init(&mut self) {
 		self.egl_context = Some(DeviceContext::new(0));
+		self.egl_context.as_ref().unwrap().make_current();
 	}
 
 	/// Destroys OpenGL resources and the EGL context.
 	fn hw_gl_destroy(&mut self) {
 		if self.egl_context.is_some() {
 			self.framebuffer.destroy();
+			self.egl_context.as_ref().unwrap().release();
 			self.egl_context.take().unwrap().destroy()
 		}
 	}
