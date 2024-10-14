@@ -200,6 +200,9 @@ pub mod egl_helpers {
 		}
 	}
 
+	// "safe"
+	unsafe impl Send for DeviceContext {}
+
 	// TODO: impl Drop?
 	// This could be problematic because OpenGL resources need to be destroyed
 	// somehow *before* we are. This could be solved in a number of ways but
