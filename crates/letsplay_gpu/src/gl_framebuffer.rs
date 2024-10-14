@@ -1,7 +1,8 @@
 use std::ffi;
 use std::ptr::{addr_of_mut, null};
 
-/// helper wrapper over a OpenGL Frame Buffer Object (FBO).
+/// Helper wrapper over a OpenGL Frame Buffer Object (FBO) that creates and completes it via the other required
+/// OpenGL objects. Useful for render-to-texture or other scenarios.
 pub struct GlFramebuffer {
 	// OpenGL object IDs
 	texture_id: gl::types::GLuint,
@@ -115,6 +116,14 @@ impl GlFramebuffer {
 
 	pub fn as_raw(&self) -> gl::types::GLuint {
 		self.fbo_id
+	}
+
+	/// Obtains the texture ID. This will change on resize,
+	/// and is managed by this GlFramebuffer, so don't poke around
+	/// too much with it. (readback or immutable operations in general are fine,
+	/// so are a subset of mutable operations.)
+	pub fn texture_id(&self) -> gl::types::GLuint {
+		self.texture_id
 	}
 
 	// TODO: accessors for the render texture
