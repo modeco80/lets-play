@@ -121,7 +121,7 @@ impl GlFramebuffer {
 	/// Obtains the texture ID. This will change on resize,
 	/// and is managed by this GlFramebuffer, so don't poke around
 	/// too much with it. (readback or immutable operations in general are fine,
-	/// so are a subset of mutable operations.)
+	/// as well as a subset of mutable operations.)
 	pub fn texture_id(&self) -> gl::types::GLuint {
 		self.texture_id
 	}
