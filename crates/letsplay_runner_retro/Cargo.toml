@@ -5,10 +5,10 @@ edition = "2021"
 publish = false
 
 [dependencies]
-letsplay_runner_core = { path = "../letsplay_runner_core" }
-tokio = {workspace = true}
+letsplay_runner_core.path = "../letsplay_runner_core"
+tokio.workspace = true
 
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
-anyhow = { workspace = true }
+anyhow.workspace = true

@@ -1,6 +1,6 @@
 [package]
 name = "letsplay_gpu"
-description = "EGL bindings for Let's Play"
+description = "GPU helpers and bindings for Let's Play"
 version = "0.1.0"
 edition = "2021"
 publish = false
