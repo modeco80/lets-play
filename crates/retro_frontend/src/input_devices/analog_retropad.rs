@@ -54,7 +54,7 @@ impl InputDevice for AnalogRetroPad {
 			true
 		} else {
 			// Check for the analog type
-			id == self.device_type()
+			id == libretro_sys_new::DEVICE_ANALOG
 		}
 	}
 
@@ -65,19 +65,21 @@ impl InputDevice for AnalogRetroPad {
 	}
 
 	fn get_index(&self, index: u32, id: u32) -> i16 {
+		// Nasty but you can blame libretro.
+		let fallback = self.pad.get_index(0, id);
 		return match index {
 			libretro_sys_new::DEVICE_INDEX_ANALOG_LEFT => match id {
 				libretro_sys_new::DEVICE_ID_ANALOG_X => self.left_stick.x,
 				libretro_sys_new::DEVICE_ID_ANALOG_Y => self.left_stick.y,
-				_ => 0i16,
+				_ => fallback,
 			},
 			libretro_sys_new::DEVICE_INDEX_ANALOG_RIGHT => match id {
 				libretro_sys_new::DEVICE_ID_ANALOG_X => self.right_stick.x,
 				libretro_sys_new::DEVICE_ID_ANALOG_Y => self.right_stick.y,
-				_ => 0i16,
+				_ => fallback,
 			},
 
-			_ => self.pad.get_index(0, id),
+			_ => 0i16,
 		};
 	}
 
