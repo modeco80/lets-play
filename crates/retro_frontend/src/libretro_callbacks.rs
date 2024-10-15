@@ -111,34 +111,40 @@ pub(crate) unsafe extern "C" fn environment_callback(
 			let hw_render_context_type =
 				HwContextType::from_uint(hw_render.context_type).expect("Uh oh!");
 
-			if hw_render_context_type != HwContextType::OpenGL
-				&& hw_render_context_type != HwContextType::OpenGLCore
-			{
-				error!(
-					"Core is trying to request an context type we don't support ({:?}), failing",
-					hw_render_context_type
-				);
-				return false;
+			match hw_render_context_type {
+				HwContextType::OpenGL | HwContextType::OpenGLCore => {
+					let init_data = (*(*FRONTEND).interface).hw_gl_init();
+
+					if init_data.is_none() {
+						return false;
+					}
+
+					let init_data_unwrapped = init_data.unwrap();
+
+					hw_render.get_current_framebuffer = hw_gl_get_framebuffer;
+					hw_render.get_proc_address =
+						std::mem::transmute(init_data_unwrapped.get_proc_address);
+
+					// reset context
+					(hw_render.context_reset)();
+
+					tracing::info!(
+						"{:?} HWContext initalized successfully",
+						hw_render_context_type
+					);
+				}
+
+				_ => {
+					error!(
+						"Core is trying to request an context type we don't support ({:?}), failing",
+						hw_render_context_type
+					);
+					return false;
+				}
 			}
 
-			let init_data = (*(*FRONTEND).interface).hw_gl_init();
-
-			if init_data.is_none() {
-				return false;
-			}
-
-			let init_data_unwrapped = init_data.unwrap();
-
-			hw_render.get_current_framebuffer = hw_gl_get_framebuffer;
-			hw_render.get_proc_address = std::mem::transmute(init_data_unwrapped.get_proc_address);
-
-			// reset context
-			(hw_render.context_reset)();
-
-			// Once we have initalized HW rendering any data here doesn't matter and isn't needed.
-			(*FRONTEND).converted_pixel_buffer.clear();
-
-			tracing::info!("Hardware context initalized successfully");
+			// Once we have initalized HW rendering, we do not need a conversion buffer.
+			(*FRONTEND).converted_pixel_buffer = None;
 
 			return true;
 		}
