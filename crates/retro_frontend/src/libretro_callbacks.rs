@@ -303,6 +303,11 @@ pub(crate) unsafe extern "C" fn input_state_callback(
 	0
 }
 
+pub(crate) unsafe extern "C" fn audio_sample_callback(left: i16, right: i16) {
+	// FIXME: we should batch these internally and then call the sample callback
+	// (wouldn't be too hard..)
+}
+
 pub(crate) unsafe extern "C" fn audio_sample_batch_callback(
 	// Is actually a [[l, r]] interleaved pair.
 	samples: *const i16,

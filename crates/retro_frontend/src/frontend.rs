@@ -335,6 +335,7 @@ impl Frontend {
 			(core_api_ref.retro_set_audio_sample_batch)(
 				libretro_callbacks::audio_sample_batch_callback,
 			);
+			(core_api_ref.retro_set_audio_sample)(libretro_callbacks::audio_sample_callback);
 
 			info!("Core {} loaded", path.as_ref().display());
 		}
