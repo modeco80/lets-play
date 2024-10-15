@@ -75,7 +75,7 @@ pub struct Frontend {
 	pub(crate) pixel_format: PixelFormat,
 
 	/// Converted pixel buffer. We store it here so we don't keep allocating over and over.
-	pub(crate) converted_pixel_buffer: Vec<u32>,
+	pub(crate) converted_pixel_buffer: Option<Box<[u32]>>,
 
 	// Framebuffer attributes. TODO: This really should be another struct or something
 	// with members to make dealing with it less annoying.
@@ -118,7 +118,7 @@ impl Frontend {
 			sys_info: None,
 
 			pixel_format: PixelFormat::RGB565,
-			converted_pixel_buffer: Vec::new(),
+			converted_pixel_buffer: None,
 
 			fb_width: 0,
 			fb_height: 0,
@@ -373,6 +373,7 @@ impl Frontend {
 		self.fb_width = 0;
 		self.fb_height = 0;
 		self.fb_pitch = 0;
+		self.converted_pixel_buffer = None;
 
 		// disconnect all currently connected joypads
 		self.input_devices.clear();

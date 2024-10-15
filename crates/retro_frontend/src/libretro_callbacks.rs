@@ -248,12 +248,19 @@ pub(crate) unsafe extern "C" fn video_refresh_callback(
 				(pitch * height as usize) as usize,
 			);
 
-			// Resize the conversion buffer if we need to
-			if (pitch * height as usize) as usize != (*FRONTEND).converted_pixel_buffer.len() {
-				(*FRONTEND)
-					.converted_pixel_buffer
-					.resize((pitch * height as usize) as usize, 0);
+			// Resize or allocate the conversion buffer if we need to
+			if (*FRONTEND).converted_pixel_buffer.is_none() {
+				(*FRONTEND).converted_pixel_buffer =
+					Some(util::alloc_boxed_slice(pitch * height as usize));
+			} else {
+				let buffer = (*FRONTEND).converted_pixel_buffer.as_ref().unwrap();
+				if (pitch * height as usize) as usize != buffer.len() {
+					(*FRONTEND).converted_pixel_buffer =
+						Some(util::alloc_boxed_slice(pitch * height as usize));
+				}
 			}
+
+			let buffer = (*FRONTEND).converted_pixel_buffer.as_mut().unwrap();
 
 			for x in 0..pitch as usize {
 				for y in 0..height as usize {
@@ -261,13 +268,12 @@ pub(crate) unsafe extern "C" fn video_refresh_callback(
 					let comp = rgb.to_rgb888_components();
 
 					// Finally save the pixel data in the result array as an XRGB8888 value
-					(*FRONTEND).converted_pixel_buffer[y * pitch as usize + x] =
+					buffer[y * pitch as usize + x] =
 						((comp[2] as u32) << 16) | ((comp[1] as u32) << 8) | (comp[0] as u32);
 				}
 			}
 
-			(*(*FRONTEND).interface)
-				.video_update(&(*FRONTEND).converted_pixel_buffer[..], pitch as u32);
+			(*(*FRONTEND).interface).video_update(&buffer[..], pitch as u32);
 		}
 		_ => {
 			let pixel_data_slice = std::slice::from_raw_parts(
