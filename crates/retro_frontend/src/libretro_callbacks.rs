@@ -1,6 +1,6 @@
 //! Callbacks for libretro
 use crate::input_devices::InputDevice;
-use crate::{frontend::*, libretro_log, libretro_sys_new, util};
+use crate::{frontend::*, libretro_log, util};
 use crate::{libretro_core_variable, libretro_sys_new::*};
 
 use rgb565::Rgb565;
@@ -287,7 +287,7 @@ pub(crate) unsafe extern "C" fn input_poll_callback() {
 pub(crate) unsafe extern "C" fn input_state_callback(
 	port: ffi::c_uint,
 	device: ffi::c_uint,
-	_index: ffi::c_uint, // not used?
+	index: ffi::c_uint, // not used?
 	button_id: ffi::c_uint,
 ) -> ffi::c_short {
 	if (*FRONTEND).input_devices.contains_key(&port) {
@@ -295,21 +295,15 @@ pub(crate) unsafe extern "C" fn input_state_callback(
 			"How do we get here when contains_key() returns true but the key doen't exist",
 		));
 
-		// FIXME: Use the index to do analog lookup.
-
 		if joypad.device_type_compatible(device) {
-			if button_id == libretro_sys_new::DEVICE_ID_JOYPAD_MASK {
-				return joypad.button_mask() as i16;
-			} else {
-				return (*joypad).get_button(button_id);
-			}
+			return (*joypad).get_index(index, button_id);
 		}
 	}
 
 	0
 }
 
-pub(crate) unsafe extern "C" fn audio_sample_callback(left: i16, right: i16) {
+pub(crate) unsafe extern "C" fn audio_sample_callback(_left: i16, _right: i16) {
 	// FIXME: we should batch these internally and then call the sample callback
 	// (wouldn't be too hard..)
 }

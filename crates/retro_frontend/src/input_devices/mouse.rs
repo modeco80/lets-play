@@ -28,7 +28,7 @@ impl InputDevice for Mouse {
 		id == self.device_type()
 	}
 
-	fn get_button(&self, id: u32) -> i16 {
+	fn get_index(&self, _index: u32, id: u32) -> i16 {
 		if id > 8 {
 			return 0;
 		}
