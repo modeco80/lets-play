@@ -1,5 +1,6 @@
 //! Callbacks for libretro
-use crate::{frontend::*, libretro_log, util};
+use crate::input_devices::InputDevice;
+use crate::{frontend::*, libretro_log, libretro_sys_new, util};
 use crate::{libretro_core_variable, libretro_sys_new::*};
 
 use rgb565::Rgb565;
@@ -290,13 +291,18 @@ pub(crate) unsafe extern "C" fn input_state_callback(
 	button_id: ffi::c_uint,
 ) -> ffi::c_short {
 	if (*FRONTEND).input_devices.contains_key(&port) {
-		let joypad = *(*FRONTEND)
-			.input_devices
-			.get(&port)
-			.expect("How do we get here when contains_key() returns true but the key doen't exist");
+		let joypad: &dyn InputDevice = &*(*(*FRONTEND).input_devices.get(&port).expect(
+			"How do we get here when contains_key() returns true but the key doen't exist",
+		));
 
-		if device == (*joypad).device_type() {
-			return (*joypad).get_button(button_id);
+		// FIXME: Use the index to do analog lookup.
+
+		if joypad.device_type_compatible(device) {
+			if button_id == libretro_sys_new::DEVICE_ID_JOYPAD_MASK {
+				return joypad.button_mask() as i16;
+			} else {
+				return (*joypad).get_button(button_id);
+			}
 		}
 	}
 

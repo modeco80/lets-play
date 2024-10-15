@@ -20,12 +20,28 @@ impl InputDevice for RetroPad {
 		libretro_sys_new::DEVICE_JOYPAD
 	}
 
+	fn device_type_compatible(&self, id: u32) -> bool {
+		id == self.device_type()
+	}
+
 	fn get_button(&self, id: u32) -> i16 {
 		if id > 16 {
 			return 0;
 		}
 
 		self.buttons[id as usize]
+	}
+
+	fn button_mask(&self) -> i16 {
+		let mut mask = 0u16;
+
+		for i in 0..self.buttons.len() {
+			if self.buttons[i] != 0 {
+				mask |= 1 << i;
+			}
+		}
+
+		mask as i16
 	}
 
 	fn reset(&mut self) {

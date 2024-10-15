@@ -24,6 +24,10 @@ impl InputDevice for Mouse {
 		libretro_sys_new::DEVICE_MOUSE
 	}
 
+	fn device_type_compatible(&self, id: u32) -> bool {
+		id == self.device_type()
+	}
+
 	fn get_button(&self, id: u32) -> i16 {
 		if id > 8 {
 			return 0;
