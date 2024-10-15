@@ -5,6 +5,8 @@ pub use retropad::*;
 pub mod mouse;
 pub use mouse::*;
 
+pub mod analog_retropad;
+pub use analog_retropad::*;
 
 /// Trait/abstraction for implementing Libretro input devices.
 pub trait InputDevice {
