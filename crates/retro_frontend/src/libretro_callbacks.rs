@@ -3,8 +3,6 @@ use crate::input_devices::InputDevice;
 use crate::{frontend::*, libretro_log, util};
 use crate::{libretro_core_variable, libretro_sys_new::*};
 
-use rgb565::Rgb565;
-
 use std::ffi;
 
 use tracing::{debug, error};
@@ -125,7 +123,7 @@ pub(crate) unsafe extern "C" fn environment_callback(
 					hw_render.get_proc_address =
 						std::mem::transmute(init_data_unwrapped.get_proc_address);
 
-					// reset context
+					// Reset the context now that we have given the core the correct information
 					(hw_render.context_reset)();
 
 					tracing::info!(
@@ -221,22 +219,22 @@ pub(crate) unsafe extern "C" fn video_refresh_callback(
 	height: ffi::c_uint,
 	pitch: usize,
 ) {
-	// I guess this must be how duplicated frames are signaled.
-	// one word: Bleh
+	// This is how frame duplication is signaled, even w/ HW rendering (or some cores are just badly written.
+	// I mean I've already had to baby cores enough!).
+	// One word: Bleh.
 	if pixels.is_null() {
 		return;
 	}
 
-	//info!("Video refresh called, {width}, {height}, {pitch}");
-
 	if (*FRONTEND).fb_width != width || (*FRONTEND).fb_height != height {
+		// bleh
+		(*FRONTEND).fb_width = width;
+		(*FRONTEND).fb_height = height;
+
 		(*(*FRONTEND).interface).video_resize(width, height);
 	}
 
-	// bleh
-	(*FRONTEND).fb_width = width;
-	(*FRONTEND).fb_height = height;
-
+	// This means that hardware context was used to render and we need to get it via that.
 	if pixels == (-1i64 as *const ffi::c_void) {
 		(*(*FRONTEND).interface).video_update_gl();
 		return;
@@ -247,49 +245,103 @@ pub(crate) unsafe extern "C" fn video_refresh_callback(
 
 	let pitch = (*FRONTEND).fb_pitch as usize;
 
+	// Resize or allocate the conversion buffer if we need to
+	if (*FRONTEND).converted_pixel_buffer.is_none() {
+		(*FRONTEND).converted_pixel_buffer = Some(util::alloc_boxed_slice(pitch * height as usize));
+	} else {
+		let buffer = (*FRONTEND).converted_pixel_buffer.as_ref().unwrap();
+		if (pitch * height as usize) as usize != buffer.len() {
+			(*FRONTEND).converted_pixel_buffer =
+				Some(util::alloc_boxed_slice(pitch * height as usize));
+		}
+	}
+
+	let buffer = (*FRONTEND).converted_pixel_buffer.as_mut().unwrap();
+
+	// Depending on the pixel format, do the appropiate conversion to XRGB8888.
+	//
+	// We use XRGB8888 as a standard format since it's more convinent to work with
+	// and also directly works with NVENC. (Other encoders will require GPU-side kernels to
+	// conv. to YUV or NV12, but that's a battle for later.)
 	match (*FRONTEND).pixel_format {
+		PixelFormat::ARGB1555 => {
+			let pixel_data_slice = std::slice::from_raw_parts(
+				pixels as *const u16,
+				(pitch * height as usize) as usize,
+			);
+
+			for x in 0..pitch as usize {
+				for y in 0..height as usize {
+					let pixel = pixel_data_slice[y * pitch as usize + x];
+
+					// We currently ignore the alpha bit
+					let comp = (
+						(pixel & 0x7c00) as u8,
+						((pixel & 0x3e0) >> 8) as u8,
+						(pixel & 0x1f) as u8,
+					);
+
+					// Finally save the pixel data in the result array as an XRGB8888 value
+					buffer[y * pitch as usize + x] = (255u32 << 24)
+						| ((comp.2 as u32) << 16)
+						| ((comp.1 as u32) << 8) | (comp.0 as u32);
+				}
+			}
+		}
+
 		PixelFormat::RGB565 => {
 			let pixel_data_slice = std::slice::from_raw_parts(
 				pixels as *const u16,
 				(pitch * height as usize) as usize,
 			);
 
-			// Resize or allocate the conversion buffer if we need to
-			if (*FRONTEND).converted_pixel_buffer.is_none() {
-				(*FRONTEND).converted_pixel_buffer =
-					Some(util::alloc_boxed_slice(pitch * height as usize));
-			} else {
-				let buffer = (*FRONTEND).converted_pixel_buffer.as_ref().unwrap();
-				if (pitch * height as usize) as usize != buffer.len() {
-					(*FRONTEND).converted_pixel_buffer =
-						Some(util::alloc_boxed_slice(pitch * height as usize));
-				}
-			}
-
-			let buffer = (*FRONTEND).converted_pixel_buffer.as_mut().unwrap();
-
 			for x in 0..pitch as usize {
 				for y in 0..height as usize {
-					let rgb = Rgb565::from_rgb565(pixel_data_slice[y * pitch as usize + x]);
-					let comp = rgb.to_rgb888_components();
+					let pixel = pixel_data_slice[y * pitch as usize + x];
+					let comp: (u8, u8, u8) = (
+						((pixel >> 11 & 0x1f) * 255 / 0x1f) as u8,
+						((pixel >> 5 & 0x3f) * 255 / 0x3f) as u8,
+						((pixel & 0x1f) * 255 / 0x1f) as u8,
+					);
 
-					// Finally save the pixel data in the result array as an XRGB8888 value
-					buffer[y * pitch as usize + x] =
-						((comp[2] as u32) << 16) | ((comp[1] as u32) << 8) | (comp[0] as u32);
+					buffer[y * pitch as usize + x] = (255u32 << 24)
+						| ((comp.2 as u32) << 16)
+						| ((comp.1 as u32) << 8) | (comp.0 as u32);
 				}
 			}
-
-			(*(*FRONTEND).interface).video_update(&buffer[..], pitch as u32);
 		}
-		_ => {
+
+		PixelFormat::ARGB8888 => {
 			let pixel_data_slice = std::slice::from_raw_parts(
 				pixels as *const u32,
 				(pitch * height as usize) as usize,
 			);
 
-			(*(*FRONTEND).interface).video_update(&pixel_data_slice, pitch as u32);
+			// FIXME: could be simd-ified to do this across 4 or 8 pixels at once per line
+			// practically speaking however, it's *probably* not worth doing so because
+			// cores that might take advantage of such a optimized cpu kernel
+			// will probably have hardware rendering support.
+			// (therefore, we don't need to copy or change the format of anything)
+			for x in 0..pitch as usize {
+				for y in 0..height as usize {
+					let pixel = pixel_data_slice[y * pitch as usize + x];
+
+					let comp = (
+						((pixel & 0xff_00_00_00) >> 24) as u8,
+						((pixel & 0x00_ff_00_00) >> 16) as u8,
+						((pixel & 0x00_00_ff_00) >> 8) as u8,
+						(pixel & 0x00_00_00_ff) as u8,
+					);
+
+					buffer[y * pitch as usize + x] = (255u32 << 24)
+						| ((comp.3 as u32) << 16)
+						| ((comp.2 as u32) << 8) | (comp.1 as u32);
+				}
+			}
 		}
 	}
+
+	(*(*FRONTEND).interface).video_update(&buffer[..], pitch as u32);
 }
 
 pub(crate) unsafe extern "C" fn input_poll_callback() {
