@@ -14,3 +14,10 @@ tokio = { version = "1.37.0", features = [ "full" ] }
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 thiserror = "1.0.61"
+
+gl = "0.14.0"
+gl_generator = "0.14.0"
+
+[patch.crates-io]
+ffmpeg = { version = "7.0.0", package = "ffmpeg-next", git = "https://github.com/hgaiser/rust-ffmpeg", branch = "codec-context-settable" }
+ffmpeg-sys-next = { version = "7.0.0", git = "https://github.com/hgaiser/rust-ffmpeg-sys", branch = "cuda" }
